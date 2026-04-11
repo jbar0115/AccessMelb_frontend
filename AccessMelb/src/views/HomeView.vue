@@ -55,6 +55,7 @@
             <input
               id="hero-search"
               v-model="searchQuery"
+              @input="onSearch"
               class="search-input"
               type="search"
               placeholder="Search for a gallery, museum, library, theatre..."
@@ -188,7 +189,7 @@
         <div class="venues-header">
           <h2 id="venues-heading" class="venues-title">Destinations in Melbourne</h2>
           <span class="venues-count-badge" aria-live="polite" aria-atomic="true">
-            {{ filteredDestinations.length }} destination{{ filteredDestinations.length !== 1 ? 's' : '' }}
+            {{ totalCount }} destination{{ totalCount !== 1 ? 's' : '' }}
           </span>
         </div>
 
@@ -273,6 +274,49 @@
           </div>
         </div>
 
+        <!-- PAGINATION -->
+        <nav
+          v-if="totalPages > 1"
+          class="pagination"
+          aria-label="Destination pages"
+        >
+          <button
+            class="page-btn page-prev"
+            :disabled="currentPage === 1"
+            :aria-disabled="currentPage === 1"
+            aria-label="Previous page"
+            @click="goToPage(currentPage - 1)"
+          >
+            <i class="pi pi-chevron-left" aria-hidden="true"></i>
+          </button>
+
+          <button
+            v-for="page in paginationPages"
+            :key="page"
+            class="page-btn"
+            :class="{
+              'page-active':   page === currentPage,
+              'page-ellipsis': page === '...'
+            }"
+            :aria-label="page === '...' ? 'More pages' : `Page ${page}`"
+            :aria-current="page === currentPage ? 'page' : undefined"
+            :disabled="page === '...'"
+            @click="goToPage(page)"
+          >
+            {{ page }}
+          </button>
+
+          <button
+            class="page-btn page-next"
+            :disabled="currentPage === totalPages"
+            :aria-disabled="currentPage === totalPages"
+            aria-label="Next page"
+            @click="goToPage(currentPage + 1)"
+          >
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </button>
+        </nav>
+
       </div>
     </section>
   </div>
@@ -290,6 +334,8 @@ const error        = ref(false)
 const searchQuery  = ref('')
 const activeFilter = ref('all')
 const totalCount   = ref(0)
+const currentPage   = ref(1)
+const itemsPerPage  = 9
 
 const filterOptions = [
   { value: 'all',       label: 'All venues',  icon: 'pi-th-large'          },
@@ -305,8 +351,11 @@ const filterOptions = [
 async function fetchDestinations() {
   loading.value = true
   error.value   = false
+  const offset = (currentPage.value - 1) * itemsPerPage
   try {
-    const params = new URLSearchParams({ limit: 100, offset: 0 })
+    const params = new URLSearchParams({ limit: itemsPerPage, offset: offset,
+      ...(activeFilter.value !== 'all' && { category: activeFilter.value }),
+      ...(searchQuery.value && { search: searchQuery.value }) })
     const res  = await fetch(`${import.meta.env.VITE_API_BASE_URL}/destinations?${params}`)
     if (!res.ok) throw new Error('API error')
     const data = await res.json()
@@ -328,18 +377,56 @@ const displayCount = computed(() =>
   totalCount.value ? `${totalCount.value}+` : '...'
 )
 
-const filteredDestinations = computed(() => {
-  return destinations.value.filter(d => {
-    const matchCat    = activeFilter.value === 'all' || d.category === activeFilter.value
-    const matchSearch = !searchQuery.value ||
-      d.feature_name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      d.sub_theme.toLowerCase().includes(searchQuery.value.toLowerCase())
-    return matchCat && matchSearch
-  })
+const filteredDestinations = computed(() => destinations.value)
+
+const totalPages = computed(() => Math.ceil(totalCount.value / itemsPerPage))
+
+const paginationPages = computed(() => {
+  const total = totalPages.value
+  const curr  = currentPage.value
+  const pages = []
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (curr > 3) pages.push('...')
+    for (let i = Math.max(2, curr - 1); i <= Math.min(total - 1, curr + 1); i++) pages.push(i)
+    if (curr < total - 2) pages.push('...')
+    pages.push(total)
+  }
+  return pages
 })
 
-function setFilter(val) { activeFilter.value = val }
-function clearSearch()  { searchQuery.value = ''; activeFilter.value = 'all' }
+function setFilter(val) {
+  activeFilter.value = val
+  currentPage.value  = 1
+  fetchDestinations()
+}
+
+function clearSearch() {
+  searchQuery.value  = ''
+  activeFilter.value = 'all'
+  currentPage.value  = 1
+  fetchDestinations()
+}
+
+let searchTimer = null
+function onSearch() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    currentPage.value = 1
+    fetchDestinations()
+  }, 400)
+}
+
+function goToPage(page) {
+  if (page === '...' || page === currentPage.value) return
+  currentPage.value = page
+  fetchDestinations()
+  window.scrollTo({ top: document.querySelector('.venues-section')?.offsetTop - 80 || 0, behavior: 'smooth' })
+}
+
+
 function goToDetail(id) { router.push({ name: 'detail', params: { id } }) }
 
 function getCategoryStyle(category) {
@@ -678,5 +765,51 @@ onMounted(fetchDestinations)
 @media (max-width: 480px) {
   .venues-header { flex-direction: column; align-items: flex-start; }
   .search-input  { font-size: 16px; }
+}
+
+/* PAGINATION */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: clamp(32px, 4vw, 48px) 0 8px;
+  flex-wrap: wrap;
+}
+
+.page-btn {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0 14px;
+  border-radius: var(--r-xs);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--w600);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  transition: all var(--tr);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-btn:hover:not(:disabled):not(.page-ellipsis) {
+  border-color: var(--t500);
+  color: var(--t600);
+  background: var(--t50);
+}
+.page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.page-active {
+  background: var(--t800);
+  border-color: var(--t800);
+  color: var(--w0);
+  box-shadow: 0 3px 12px rgba(10,92,92,0.25);
+}
+.page-active:hover { background: var(--t800) !important; color: var(--w0) !important; }
+.page-ellipsis { border-color: transparent; background: transparent; cursor: default; }
+.page-prev, .page-next { padding: 0; }
+
+@media (max-width: 480px) {
+  .page-btn { min-width: 40px; min-height: 40px; font-size: 13px; padding: 0 10px; }
 }
 </style>
