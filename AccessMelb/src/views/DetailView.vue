@@ -181,56 +181,11 @@
           </div>
 
           <!-- RIGHT: Sidebar -->
-          <aside class="detail-sidebar" aria-label="Destination information">
+          
 
-            <div class="sidebar-panel">
-              <div class="panel-header">
-                <div class="panel-header-icon" aria-hidden="true">
-                  <i class="pi pi-info-circle"></i>
-                </div>
-                <h3 class="panel-header-title">About this data</h3>
-              </div>
-              <div class="panel-body">
-                <p class="panel-text">
-                  <strong>Destination data</strong> sourced from the City of Melbourne Open Data Portal.
-                  <strong>Toilet locations</strong> and wheelchair accessibility status from the same dataset.
-                  Accessibility data may be incomplete - shown as "Unknown" rather than hidden.
-                </p>
-              </div>
-              <div class="panel-footer">
-                <i class="pi pi-database" aria-hidden="true"></i>
-                Source: City of Melbourne Open Data
-              </div>
-            </div>
+            
+              
 
-            <div class="sidebar-panel">
-              <div class="panel-header">
-                <div class="panel-header-icon" aria-hidden="true">
-                  <i class="pi pi-map"></i>
-                </div>
-                <h3 class="panel-header-title">Map legend</h3>
-              </div>
-              <div class="panel-body">
-                <div class="legend-item">
-                  <span class="legend-dot legend-dot-teal"></span>
-                  Destination
-                </div>
-                <div class="legend-item">
-                  <span class="legend-dot legend-dot-green"></span>
-                  Accessible toilet
-                </div>
-                <div class="legend-item">
-                  <span class="legend-dot legend-dot-amber"></span>
-                  Accessibility unknown
-                </div>
-                <div class="legend-item">
-                  <span class="legend-dot legend-dot-red"></span>
-                  Not accessible
-                </div>
-              </div>
-            </div>
-
-          </aside>
         </div>
 
       </div>
@@ -265,7 +220,7 @@ async function fetchDetail() {
     if (!res.ok) throw new Error('API error')
     const data      = await res.json()
     destination.value = data.destination
-    nearbyToilets.value = data.nearby_toilets?.toilets || []
+    nearbyToilets.value = data.nearby_toilets?.toilets || [] .filter(t => t.wheelchair_accessible !== 'no')
     await nextTick()
     initMap()
   } catch (e) {
@@ -530,7 +485,7 @@ onUnmounted(destroyMap)
 /* LAYOUT */
 .detail-layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr;
   gap: 24px; align-items: start;
 }
 
@@ -642,10 +597,7 @@ onUnmounted(destroyMap)
 .legend-dot-amber { background: var(--amber); }
 .legend-dot-red   { background: var(--red);   }
 
-@media (max-width: 880px) {
-  .detail-layout { grid-template-columns: 1fr; }
-  .detail-sidebar { order: -1; }
-}
+
 </style>
 
 <style>
