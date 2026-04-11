@@ -102,6 +102,137 @@
           <div id="detail-map" class="map-container" role="application" aria-label="Map showing destination location"></div>
         </div>
 
+        <!-- TWO COLUMN LAYOUT -->
+        <div class="detail-layout" style="margin-top:28px;">
+
+          <!-- LEFT: Toilets -->
+          <div class="detail-main">
+
+            <div v-if="loading" class="section-label">
+              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+              Loading nearby toilets...
+            </div>
+
+            <div v-else-if="nearbyToilets.length > 0" class="toilets-section">
+              <div class="section-header">
+                <div class="section-label">
+                  <i class="pi pi-map-marker" aria-hidden="true"></i>
+                  Nearby accessible toilets
+                </div>
+                <span class="section-badge">
+                  {{ nearbyToilets.length }} found within {{ radiusM }}m
+                </span>
+              </div>
+
+              <div class="toilets-list" role="list" aria-label="Nearby accessible toilets">
+                <div
+                  v-for="toilet in nearbyToilets"
+                  :key="toilet.toilet_id"
+                  class="toilet-card"
+                  role="listitem"
+                >
+                  <div
+                    class="toilet-status-icon"
+                    :class="getToiletStatusClass(toilet.wheelchair_accessible)"
+                    aria-hidden="true"
+                  >
+                    <i :class="['pi', getToiletStatusIcon(toilet.wheelchair_accessible)]"></i>
+                  </div>
+
+                  <div class="toilet-info">
+                    <p class="toilet-name">{{ toilet.name }}</p>
+                    <div class="toilet-tags">
+                      <span class="toilet-badge" :class="getToiletStatusClass(toilet.wheelchair_accessible)">
+                        <i :class="['pi', getToiletStatusIcon(toilet.wheelchair_accessible)]" aria-hidden="true"></i>
+                        {{ getToiletStatusLabel(toilet.wheelchair_accessible) }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    class="toilet-distance"
+                    :aria-label="`${Math.round(toilet.distance_m)} metres away`"
+                  >
+                    <i class="pi pi-map-marker" aria-hidden="true"></i>
+                    {{ Math.round(toilet.distance_m) }}m
+                  </div>
+                </div>
+              </div>
+
+              <div class="data-attribution" role="note">
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+                Toilet data sourced from the
+                <a href="https://data.melbourne.vic.gov.au" target="_blank" rel="noopener noreferrer">
+                  City of Melbourne Open Data Portal
+                  <span class="sr-only">(opens in new tab)</span>
+                </a>
+              </div>
+            </div>
+
+            <div v-else class="no-toilets" role="status">
+              <i class="pi pi-search" aria-hidden="true"></i>
+              <p>No accessible toilets found within {{ radiusM }}m of this destination.</p>
+              <button class="retry-btn" @click="increaseRadius">
+                <i class="pi pi-plus-circle" aria-hidden="true"></i>
+                Search wider ({{ radiusM + 500 }}m)
+              </button>
+            </div>
+
+          </div>
+
+          <!-- RIGHT: Sidebar -->
+          <aside class="detail-sidebar" aria-label="Destination information">
+
+            <div class="sidebar-panel">
+              <div class="panel-header">
+                <div class="panel-header-icon" aria-hidden="true">
+                  <i class="pi pi-info-circle"></i>
+                </div>
+                <h3 class="panel-header-title">About this data</h3>
+              </div>
+              <div class="panel-body">
+                <p class="panel-text">
+                  <strong>Destination data</strong> sourced from the City of Melbourne Open Data Portal.
+                  <strong>Toilet locations</strong> and wheelchair accessibility status from the same dataset.
+                  Accessibility data may be incomplete - shown as "Unknown" rather than hidden.
+                </p>
+              </div>
+              <div class="panel-footer">
+                <i class="pi pi-database" aria-hidden="true"></i>
+                Source: City of Melbourne Open Data
+              </div>
+            </div>
+
+            <div class="sidebar-panel">
+              <div class="panel-header">
+                <div class="panel-header-icon" aria-hidden="true">
+                  <i class="pi pi-map"></i>
+                </div>
+                <h3 class="panel-header-title">Map legend</h3>
+              </div>
+              <div class="panel-body">
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-teal"></span>
+                  Destination
+                </div>
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-green"></span>
+                  Accessible toilet
+                </div>
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-amber"></span>
+                  Accessibility unknown
+                </div>
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-red"></span>
+                  Not accessible
+                </div>
+              </div>
+            </div>
+
+          </aside>
+        </div>
+
       </div>
     </div>
 
@@ -119,6 +250,8 @@ const route = useRoute()
 const destination = ref(null)
 const loading     = ref(true)
 const error       = ref(false)
+const nearbyToilets = ref([])
+const radiusM = ref(500)
 let   map         = null
 
 async function fetchDetail() {
@@ -127,11 +260,12 @@ async function fetchDetail() {
   try {
     const id  = route.params.id
     const res = await fetch(
-      `${import.meta.env.VITE_API_BASE_URL}/destinations/${id}?radius=500`
+      `${import.meta.env.VITE_API_BASE_URL}/destinations/${id}?radius=${radiusM.value}`
     )
     if (!res.ok) throw new Error('API error')
     const data      = await res.json()
     destination.value = data.destination
+    nearbyToilets.value = data.nearby_toilets?.toilets || []
     await nextTick()
     initMap()
   } catch (e) {
@@ -139,6 +273,12 @@ async function fetchDetail() {
   } finally {
     loading.value = false
   }
+}
+
+async function increaseRadius(){
+  radiusM.value += 500
+  destroyMap()
+  await fetchDetail()
 }
 
 function initMap() {
@@ -178,6 +318,33 @@ function initMap() {
         )
         .addTo(map)
 
+        // Toilet markers
+      nearbyToilets.value.forEach(toilet => {
+        const color    = getMarkerColor(toilet.wheelchair_accessible)
+        const toiletEl = document.createElement('div')
+        toiletEl.className = 'marker-toilet'
+        toiletEl.innerHTML = `<div class="marker-dot" style="background:${color}"></div>`
+        new maplibregl.Marker({ element: toiletEl, anchor: 'center' })
+          .setLngLat([toilet.longitude, toilet.latitude])
+          .setPopup(
+            new maplibregl.Popup({ offset: 15 })
+              .setHTML(`
+                <strong>${toilet.name}</strong><br>
+                <span style="color:${color};font-weight:600;">${getToiletStatusLabel(toilet.wheelchair_accessible)}</span><br>
+                <span style="color:#6b8c8c;">${Math.round(toilet.distance_m)}m away</span>
+              `)
+          )
+          .addTo(map)
+      })
+
+      // Fit bounds to include all toilet markers
+      if (nearbyToilets.value.length > 0) {
+        const bounds = new maplibregl.LngLatBounds()
+        bounds.extend([longitude, latitude])
+        nearbyToilets.value.forEach(t => bounds.extend([t.longitude, t.latitude]))
+        map.fitBounds(bounds, { padding: 60, maxZoom: 16 })
+      }
+
       map.resize()
     })
   }, 200)
@@ -185,6 +352,30 @@ function initMap() {
 
 function destroyMap() {
   if (map) { map.remove(); map = null }
+}
+
+function getMarkerColor(accessible) {
+  if (accessible === 'yes') return '#0d8a4a'
+  if (accessible === 'no')  return '#b92c2c'
+  return '#c47d0a'
+}
+
+function getToiletStatusClass(accessible) {
+  if (accessible === 'yes') return 'status-accessible'
+  if (accessible === 'no')  return 'status-inaccessible'
+  return 'status-unknown'
+}
+
+function getToiletStatusIcon(accessible) {
+  if (accessible === 'yes') return 'pi-check-circle'
+  if (accessible === 'no')  return 'pi-times-circle'
+  return 'pi-question-circle'
+}
+
+function getToiletStatusLabel(accessible) {
+  if (accessible === 'yes') return 'Wheelchair accessible'
+  if (accessible === 'no')  return 'Not accessible'
+  return 'Accessibility unknown'
 }
 
 function getCategoryStyle(category) {
@@ -336,6 +527,125 @@ onUnmounted(destroyMap)
   .map-header { flex-direction: column; align-items: flex-start; }
   .map-container { height: 300px; }
 }
+/* LAYOUT */
+.detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px; align-items: start;
+}
+
+/* TOILETS */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 8px;
+}
+.section-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--t500);
+}
+.section-badge {
+  font-size: 12px; font-weight: 600; color: var(--w400);
+  background: var(--w100); padding: 4px 12px; border-radius: 100px;
+  border: 1px solid var(--w200);
+}
+.toilets-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.toilet-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1.5px solid var(--border-lt);
+  border-radius: var(--r-md); padding: 14px 16px;
+  transition: border-color var(--tr), box-shadow var(--tr);
+}
+.toilet-card:hover { border-color: var(--border); box-shadow: var(--sh-sm); }
+.toilet-status-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.status-accessible   { background: var(--green-bg); color: var(--green); }
+.status-inaccessible { background: var(--red-bg);   color: var(--red);   }
+.status-unknown      { background: var(--amber-bg); color: var(--amber); }
+.toilet-info { flex: 1; min-width: 0; }
+.toilet-name { font-size: 14px; font-weight: 600; color: var(--t700); line-height: 1.3; margin-bottom: 6px; }
+.toilet-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.toilet-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 6px;
+}
+.toilet-badge.status-accessible   { background: var(--green-bg); color: var(--green); }
+.toilet-badge.status-inaccessible { background: var(--red-bg);   color: var(--red);   }
+.toilet-badge.status-unknown      { background: var(--w100); color: var(--w400); border: 1px solid var(--w200); }
+.toilet-distance {
+  display: flex; align-items: center; gap: 4px;
+  flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--t500);
+  background: var(--t100); padding: 6px 12px; border-radius: 100px;
+  border: 1px solid rgba(10,92,92,0.12); white-space: nowrap;
+}
+.data-attribution {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--w400);
+  background: var(--t50); border: 1px solid var(--border-lt);
+  border-radius: var(--r-xs); padding: 10px 14px; margin-top: 4px;
+}
+.data-attribution a { color: var(--t500); text-decoration: underline; }
+.data-attribution a:hover { color: var(--t700); }
+.no-toilets {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 48px 24px; text-align: center; color: var(--w600);
+  background: var(--surface); border: 1.5px solid var(--border-lt);
+  border-radius: var(--r-lg);
+}
+.no-toilets .pi { font-size: 2rem; color: var(--w400); }
+.retry-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 24px; min-height: var(--touch-min);
+  border-radius: 100px; background: var(--t800); color: var(--w0);
+  font-size: 14px; font-weight: 600; transition: background var(--tr);
+}
+.retry-btn:hover { background: var(--t600); }
+
+/* SIDEBAR */
+.detail-sidebar { display: flex; flex-direction: column; gap: 18px; }
+.sidebar-panel {
+  background: var(--surface); border: 1.5px solid var(--border-lt);
+  border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--sh-sm);
+}
+.panel-header {
+  padding: 14px 20px; background: var(--t800);
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.panel-header-icon {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: rgba(255,255,255,0.12); color: var(--t300);
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.panel-header-title { font-family: 'DM Serif Display', serif; font-size: 15px; color: var(--w0); }
+.panel-body { padding: 16px 20px; }
+.panel-text { font-size: 13.5px; color: var(--w600); line-height: 1.72; }
+.panel-text strong { color: var(--t700); font-weight: 700; }
+.panel-footer {
+  padding: 10px 20px; background: var(--t50);
+  font-size: 11.5px; color: var(--t500);
+  border-top: 1px solid var(--border-lt);
+  display: flex; align-items: center; gap: 5px;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13.5px; color: var(--w600); padding: 6px 0;
+}
+.legend-dot {
+  width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  border: 2.5px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.legend-dot-teal  { background: var(--t500); }
+.legend-dot-green { background: var(--green); }
+.legend-dot-amber { background: var(--amber); }
+.legend-dot-red   { background: var(--red);   }
+
+@media (max-width: 880px) {
+  .detail-layout { grid-template-columns: 1fr; }
+  .detail-sidebar { order: -1; }
+}
 </style>
 
 <style>
@@ -359,6 +669,14 @@ onUnmounted(destroyMap)
   font-family: 'DM Sans', sans-serif;
   text-align: center;
 }
+.marker-toilet { cursor: pointer; }
+.marker-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  transition: transform 0.15s ease;
+}
+.marker-dot:hover { transform: scale(1.3); }
 .maplibregl-popup-content {
   font-family: 'DM Sans', sans-serif !important;
   font-size: 13px !important;
@@ -366,4 +684,5 @@ onUnmounted(destroyMap)
   padding: 12px 14px !important;
   box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
 }
+
 </style>
