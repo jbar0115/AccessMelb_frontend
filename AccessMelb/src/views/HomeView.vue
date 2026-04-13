@@ -58,7 +58,7 @@
               @input="onSearch"
               class="search-input"
               type="search"
-              placeholder="Search for a gallery, museum, library, theatre..."
+              placeholder="Search for a gallery, library, theatre..."
               autocomplete="off"
             />
           </div>
