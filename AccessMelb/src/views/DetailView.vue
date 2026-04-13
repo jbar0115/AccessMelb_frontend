@@ -88,16 +88,6 @@
                 Stops near {{ destination.feature_name }}
               </h2>
             </div>
-            <a
-              class="map-open-btn"
-              :href="`https://www.google.com/maps/search/?api=1&query=${destination.latitude},${destination.longitude}`"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <i class="pi pi-external-link" aria-hidden="true"></i>
-              Open full map
-              <span class="sr-only">(opens in new tab)</span>
-            </a>
           </div>
           <div id="detail-map" class="map-container" role="application" aria-label="Map showing destination location"></div>
         </div>
@@ -461,14 +451,6 @@ onUnmounted(destroyMap)
   font-family: 'DM Serif Display', serif;
   font-size: clamp(14px,1.5vw,17px); color: var(--w0);
 }
-.map-open-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12.5px; font-weight: 600; color: var(--t300);
-  padding: 8px 14px; border-radius: 8px; min-height: var(--touch-min);
-  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
-  transition: background var(--tr), color var(--tr);
-}
-.map-open-btn:hover { background: rgba(255,255,255,0.16); color: var(--w0); }
 
 .map-container {
   height: 480px;
