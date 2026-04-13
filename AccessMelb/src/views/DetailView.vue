@@ -220,7 +220,7 @@ async function fetchDetail() {
     if (!res.ok) throw new Error('API error')
     const data      = await res.json()
     destination.value = data.destination
-    nearbyToilets.value = data.nearby_toilets?.toilets || [] .filter(t => t.wheelchair_accessible !== 'no')
+    nearbyToilets.value = (data.nearby_toilets?.toilets || []) .filter(t => t.wheelchair_accessible !== 'no')
     await nextTick()
     initMap()
   } catch (e) {
