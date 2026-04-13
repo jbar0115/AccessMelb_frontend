@@ -9,10 +9,7 @@
 
       <!-- Desktop links -->
       <nav class="nav-links" aria-label="Main navigation">
-        <RouterLink to="/" :class="['nav-link', { active: route.name === 'home' }]">
-          Destinations
-        </RouterLink>
-        <a href="#about" class="nav-link">About</a>
+        <a href="#about" class="nav-link" @click="scrollToAbout">About</a>
       </nav>
 
       <!-- Mobile hamburger -->
@@ -67,6 +64,17 @@ const menuOpen = ref(false)
 
 const toggleMenu = () => { menuOpen.value = !menuOpen.value }
 const closeMenu  = () => { menuOpen.value = false }
+
+function scrollToAbout() {
+  closeMenu()
+  const aboutSection = document.getElementById('about')
+  if (aboutSection) {
+    aboutSection.scrollIntoView({ behavior: 'smooth' })
+  } else {
+    // If not on homepage, go home first then scroll
+    window.location.href = '/#about'
+  }
+}
 </script>
 
 <style scoped>

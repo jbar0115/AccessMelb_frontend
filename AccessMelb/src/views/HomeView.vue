@@ -319,6 +319,47 @@
 
       </div>
     </section>
+    <!-- ABOUT SECTION -->
+    <section id="about" class="about-section" aria-labelledby="about-heading">
+      <div class="about-inner page-container">
+        <div class="about-grid">
+          <div class="about-text">
+            <h2 id="about-heading" class="about-title">About AccessMelb</h2>
+            <p class="about-desc">
+              AccessMelb helps people with mobility-related access needs discover
+              destinations across the City of Melbourne - with nearby accessible
+              toilet information, all in one place.
+            </p>
+            <p class="about-desc">
+              AccessMelb gives you the information you need before you visit.
+            </p>
+          </div>
+          <div class="about-cards">
+            <div class="about-card">
+              <div class="about-card-icon">
+                <i class="pi pi-map-marker" aria-hidden="true"></i>
+              </div>
+              <h3 class="about-card-title">Destinations</h3>
+              <p class="about-card-text">Browse community and cultural venues across Melbourne.</p>
+            </div>
+            <div class="about-card">
+              <div class="about-card-icon">
+                <i class="pi pi-info-circle" aria-hidden="true"></i>
+              </div>
+              <h3 class="about-card-title">Toilet Access</h3>
+              <p class="about-card-text">Find nearby accessible toilets for every destination.</p>
+            </div>
+            <div class="about-card">
+              <div class="about-card-icon">
+                <i class="pi pi-database" aria-hidden="true"></i>
+              </div>
+              <h3 class="about-card-title">Open Data</h3>
+              <p class="about-card-text">Sourced from the City of Melbourne Open Data Portal.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -340,12 +381,9 @@ const itemsPerPage  = 9
 const filterOptions = [
   { value: 'all',       label: 'All venues',  icon: 'pi-th-large'          },
   { value: 'gallery',   label: 'Galleries',   icon: 'pi-palette'           },
-  { value: 'museum',    label: 'Museums',     icon: 'pi-building-columns'  },
   { value: 'library',   label: 'Libraries',   icon: 'pi-book'              },
   { value: 'theatre',   label: 'Theatres',    icon: 'pi-star'              },
   { value: 'community', label: 'Community',   icon: 'pi-users'             },
-  { value: 'sport',     label: 'Sports',      icon: 'pi-heart'             },
-  { value: 'landmark',  label: 'Landmarks',   icon: 'pi-map-marker'        },
 ]
 
 async function fetchDestinations() {
@@ -811,5 +849,65 @@ onMounted(fetchDestinations)
 
 @media (max-width: 480px) {
   .page-btn { min-width: 40px; min-height: 40px; font-size: 13px; padding: 0 10px; }
+}
+
+/* ABOUT SECTION */
+.about-section {
+  background: var(--t800);
+  padding: clamp(48px, 6vw, 96px) 0;
+}
+.about-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(32px, 5vw, 80px);
+  align-items: center;
+}
+.about-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(28px, 3.5vw, 42px);
+  color: var(--w0);
+  margin-bottom: 20px;
+}
+.about-desc {
+  font-size: clamp(14px, 1.5vw, 16px);
+  color: rgba(255,255,255,0.68);
+  line-height: 1.75;
+  margin-bottom: 16px;
+}
+.about-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.about-card {
+  background: rgba(255,255,255,0.07);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: var(--r-md);
+  padding: 20px 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  transition: background var(--tr);
+}
+.about-card:hover { background: rgba(255,255,255,0.10); }
+.about-card-icon {
+  width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+  background: rgba(255,255,255,0.10);
+  color: var(--t300);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.about-card-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 17px; color: var(--w0);
+  margin-bottom: 4px;
+}
+.about-card-text {
+  font-size: 13.5px;
+  color: rgba(255,255,255,0.55);
+  line-height: 1.6;
+}
+@media (max-width: 768px) {
+  .about-grid { grid-template-columns: 1fr; }
 }
 </style>
