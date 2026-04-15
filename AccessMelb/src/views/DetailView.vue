@@ -268,7 +268,7 @@ function initMap() {
         const color    = getMarkerColor(toilet.wheelchair_accessible)
         const toiletEl = document.createElement('div')
         toiletEl.className = 'marker-toilet'
-        toiletEl.innerHTML = `<div class="marker-dot" style="background:${color}"></div>`
+        toiletEl.innerHTML = `<div class="marker-wc-pill" style="background:${color}">WC</div>`
         new maplibregl.Marker({ element: toiletEl, anchor: 'center' })
           .setLngLat([toilet.longitude, toilet.latitude])
           .setPopup(
@@ -604,13 +604,27 @@ onUnmounted(destroyMap)
   text-align: center;
 }
 .marker-toilet { cursor: pointer; }
-.marker-dot {
-  width: 16px; height: 16px; border-radius: 50%;
-  border: 3px solid white;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-  transition: transform 0.15s ease;
+.marker-wc-pill {
+  min-width: 36px;
+  height: 28px;
+  border-radius: 20px;
+  border: 2.5px solid white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: 0.05em;
+  padding: 0 8px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.marker-dot:hover { transform: scale(1.3); }
+.marker-wc-pill:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.40);
+}
 .maplibregl-popup-content {
   font-family: 'DM Sans', sans-serif !important;
   font-size: 13px !important;
