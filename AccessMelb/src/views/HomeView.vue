@@ -189,7 +189,7 @@
         <div class="venues-header">
           <h2 id="venues-heading" class="venues-title">Destinations in Melbourne</h2>
           <span class="venues-count-badge" aria-live="polite" aria-atomic="true">
-            {{ totalCount }} destination{{ totalCount !== 1 ? 's' : '' }}
+            {{ searchFiltered.length }} destination{{ searchFiltered.length !== 1 ? 's' : '' }}
           </span>
         </div>
 
@@ -364,6 +364,7 @@
 </template>
 
 <script setup>
+import Fuse from 'fuse.js'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -377,6 +378,7 @@ const activeFilter = ref('all')
 const totalCount   = ref(0)
 const currentPage   = ref(1)
 const itemsPerPage  = 9
+const allDestinations = ref([])
 
 const filterOptions = [
   { value: 'all',       label: 'All venues',  icon: 'pi-th-large'          },
@@ -389,15 +391,12 @@ const filterOptions = [
 async function fetchDestinations() {
   loading.value = true
   error.value   = false
-  const offset = (currentPage.value - 1) * itemsPerPage
   try {
-    const params = new URLSearchParams({ limit: itemsPerPage, offset: offset,
-      ...(activeFilter.value !== 'all' && { category: activeFilter.value }),
-      ...(searchQuery.value && { search: searchQuery.value }) })
+    const params = new URLSearchParams({ limit: 100, offset: 0 })
     const res  = await fetch(`${import.meta.env.VITE_API_BASE_URL}/destinations?${params}`)
     if (!res.ok) throw new Error('API error')
     const data = await res.json()
-    destinations.value = data.destinations || []
+    allDestinations.value = data.destinations || []
     totalCount.value   = data.count || 0
   } catch (e) {
     error.value = true
@@ -415,9 +414,32 @@ const displayCount = computed(() =>
   totalCount.value ? `${totalCount.value}+` : '...'
 )
 
-const filteredDestinations = computed(() => destinations.value)
+const categoryFiltered = computed(() => {
+  if (activeFilter.value === 'all') return allDestinations.value
+  return allDestinations.value.filter(d =>
+    d.category?.toLowerCase() === activeFilter.value
+  )
+})
 
-const totalPages = computed(() => Math.ceil(totalCount.value / itemsPerPage))
+const searchFiltered = computed(() => {
+  if (!searchQuery.value.trim()) return categoryFiltered.value
+  const fuseOnCategory = new Fuse(categoryFiltered.value, {
+    keys: ['feature_name', 'sub_theme'],
+    threshold: 0.4,
+    minMatchCharLength: 2,
+    ignoreLocation: true
+  })
+  return fuseOnCategory.search(searchQuery.value).map(r => r.item)
+})
+
+const filteredDestinations = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  return searchFiltered.value.slice(start, start + itemsPerPage)
+})
+
+const totalPages = computed(() =>
+  Math.ceil(searchFiltered.value.length / itemsPerPage)
+)
 
 const paginationPages = computed(() => {
   const total = totalPages.value
@@ -438,29 +460,21 @@ const paginationPages = computed(() => {
 function setFilter(val) {
   activeFilter.value = val
   currentPage.value  = 1
-  fetchDestinations()
 }
 
 function clearSearch() {
   searchQuery.value  = ''
   activeFilter.value = 'all'
   currentPage.value  = 1
-  fetchDestinations()
 }
 
-let searchTimer = null
 function onSearch() {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
     currentPage.value = 1
-    fetchDestinations()
-  }, 400)
 }
 
 function goToPage(page) {
   if (page === '...' || page === currentPage.value) return
   currentPage.value = page
-  fetchDestinations()
   window.scrollTo({ top: document.querySelector('.venues-section')?.offsetTop - 80 || 0, behavior: 'smooth' })
 }
 
