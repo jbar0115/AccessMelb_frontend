@@ -85,7 +85,7 @@
                 <i class="pi pi-map"></i>
               </div>
               <h2 class="map-header-title">
-                Stops near {{ destination.feature_name }}
+                Accessible toilets near {{ destination.feature_name }}
               </h2>
             </div>
           </div>
@@ -458,8 +458,10 @@ onUnmounted(destroyMap)
   display: flex; align-items: center; justify-content: center; font-size: 14px;
 }
 .map-header-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: clamp(14px,1.5vw,17px); color: var(--w0);
+  font-family: 'DM Sans', sans-serif;
+  font-size: clamp(14px,1.5vw,16px); 
+  font-weight:600;
+  color: var(--w0);
 }
 
 .map-container {
