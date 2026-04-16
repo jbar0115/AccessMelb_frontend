@@ -406,7 +406,7 @@ async function fetchDestinations() {
 }
 
 const categories = computed(() => {
-  const cats = new Set(destinations.value.map(d => d.category))
+  const cats = new Set(allDestinations.value.map(d => d.category))
   return [...cats]
 })
 
