@@ -255,13 +255,18 @@ function initMap() {
         </div>
         <div class="marker-label">${destination.value.feature_name.split(' ').slice(0, 2).join(' ')}</div>
       `
-      new maplibregl.Marker({ element: destEl, anchor: 'bottom' })
-        .setLngLat([longitude, latitude])
-        .setPopup(
-          new maplibregl.Popup({ offset: 25 })
-            .setHTML(`<strong>${destination.value.feature_name}</strong><br>${destination.value.sub_theme}`)
-        )
-        .addTo(map)
+      const destPopup = new maplibregl.Popup({
+      offset: 25,
+      closeButton: false,
+      closeOnClick: false
+    }).setHTML(`<strong>${destination.value.feature_name}</strong><br>${destination.value.sub_theme}`)
+
+    new maplibregl.Marker({ element: destEl, anchor: 'bottom' })
+      .setLngLat([longitude, latitude])
+      .addTo(map)
+
+    destEl.addEventListener('mouseenter', () => destPopup.setLngLat([longitude, latitude]).addTo(map))
+    destEl.addEventListener('mouseleave', () => destPopup.remove())
 
         // Toilet markers
       nearbyToilets.value.forEach(toilet => {
@@ -269,17 +274,22 @@ function initMap() {
         const toiletEl = document.createElement('div')
         toiletEl.className = 'marker-toilet'
         toiletEl.innerHTML = `<div class="marker-wc-pill" style="background:${color}">WC</div>`
-        new maplibregl.Marker({ element: toiletEl, anchor: 'center' })
+        const popup = new maplibregl.Popup({
+          offset: 15,
+          closeButton: false,
+          closeOnClick: false
+        }).setHTML(`
+          <strong>${toilet.name}</strong><br>
+          <span style="color:${color};font-weight:600;">${getToiletStatusLabel(toilet.wheelchair_accessible)}</span><br>
+          <span style="color:#6b8c8c;">${Math.round(toilet.distance_m)}m away</span>
+        `)
+
+        const marker = new maplibregl.Marker({ element: toiletEl, anchor: 'center' })
           .setLngLat([toilet.longitude, toilet.latitude])
-          .setPopup(
-            new maplibregl.Popup({ offset: 15 })
-              .setHTML(`
-                <strong>${toilet.name}</strong><br>
-                <span style="color:${color};font-weight:600;">${getToiletStatusLabel(toilet.wheelchair_accessible)}</span><br>
-                <span style="color:#6b8c8c;">${Math.round(toilet.distance_m)}m away</span>
-              `)
-          )
           .addTo(map)
+
+        toiletEl.addEventListener('mouseenter', () => popup.setLngLat([toilet.longitude, toilet.latitude]).addTo(map))
+        toiletEl.addEventListener('mouseleave', () => popup.remove())
       })
 
       // Fit bounds to include all toilet markers
