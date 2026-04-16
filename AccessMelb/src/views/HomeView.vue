@@ -188,6 +188,7 @@
 
         <div class="venues-header">
           <h2 id="venues-heading" class="venues-title">Destinations in Melbourne</h2>
+          <!-- aria-live announces count changes to screen readers when search or filter updates -->
           <span class="venues-count-badge" aria-live="polite" aria-atomic="true">
             {{ searchFiltered.length }} destination{{ searchFiltered.length !== 1 ? 's' : '' }}
           </span>
@@ -388,10 +389,12 @@ const filterOptions = [
   { value: 'community', label: 'Community',   icon: 'pi-users'             },
 ]
 
+// Fetch all destinations once on mount then search and filter handled client-side via Fuse.js
 async function fetchDestinations() {
   loading.value = true
   error.value   = false
   try {
+    // Fetch full dataset to enable client-side fuzzy search without repeated API calls
     const params = new URLSearchParams({ limit: 100, offset: 0 })
     const res  = await fetch(`${import.meta.env.VITE_API_BASE_URL}/destinations?${params}`)
     if (!res.ok) throw new Error('API error')
@@ -421,6 +424,7 @@ const categoryFiltered = computed(() => {
   )
 })
 
+// Fetch full dataset to enable client-side fuzzy search without repeated API calls
 const searchFiltered = computed(() => {
   if (!searchQuery.value.trim()) return categoryFiltered.value
   const fuseOnCategory = new Fuse(categoryFiltered.value, {
@@ -432,6 +436,7 @@ const searchFiltered = computed(() => {
   return fuseOnCategory.search(searchQuery.value).map(r => r.item)
 })
 
+// Slice fuzzy-filtered results into pages of 9
 const filteredDestinations = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage
   return searchFiltered.value.slice(start, start + itemsPerPage)
@@ -478,7 +483,7 @@ function goToPage(page) {
   window.scrollTo({ top: document.querySelector('.venues-section')?.offsetTop - 80 || 0, behavior: 'smooth' })
 }
 
-
+// Navigate to destination detail page passing the destination ID as a route param
 function goToDetail(id) { router.push({ name: 'detail', params: { id } }) }
 
 function getCategoryStyle(category) {
