@@ -199,6 +199,7 @@ const nearbyToilets = ref([])
 const radiusM = ref(500)
 let   map         = null
 
+// Fetch destination details and nearby toilets using destination ID from route params
 async function fetchDetail() {
   loading.value = true
   error.value   = false
@@ -210,6 +211,7 @@ async function fetchDetail() {
     if (!res.ok) throw new Error('API error')
     const data      = await res.json()
     destination.value = data.destination
+    // Filter out inaccessible toilets and only show accessible or unknown to avoid discouraging users
     nearbyToilets.value = (data.nearby_toilets?.toilets || []) .filter(t => t.wheelchair_accessible !== 'no')
     await nextTick()
     initMap()
@@ -220,12 +222,14 @@ async function fetchDetail() {
   }
 }
 
+// Expand search radius by 500m if no toilets found within current radius
 async function increaseRadius(){
   radiusM.value += 500
   destroyMap()
   await fetchDetail()
 }
 
+// Initialise MapLibre map with Geoapify tiles and place destination and toilet markers
 function initMap() {
   if (map) destroyMap()
   setTimeout(() => {
@@ -287,7 +291,7 @@ function initMap() {
         const marker = new maplibregl.Marker({ element: toiletEl, anchor: 'center' })
           .setLngLat([toilet.longitude, toilet.latitude])
           .addTo(map)
-
+        // Show popup on hover for faster information access
         toiletEl.addEventListener('mouseenter', () => popup.setLngLat([toilet.longitude, toilet.latitude]).addTo(map))
         toiletEl.addEventListener('mouseleave', () => popup.remove())
       })
@@ -305,6 +309,7 @@ function initMap() {
   }, 200)
 }
 
+// Clean up MapLibre instance when component is unmounted to prevent memory leaks
 function destroyMap() {
   if (map) { map.remove(); map = null }
 }
