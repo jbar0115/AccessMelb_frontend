@@ -15,7 +15,7 @@ const router = createRouter({
             name: 'detail',
             component: () => import('../views/DetailView.vue'),
             meta: { title: 'Destination Details - AccessMelb' }
-        }
+        },
     ],
     scrollBehavior() {
         return { top: 0, behavior: 'smooth' }
