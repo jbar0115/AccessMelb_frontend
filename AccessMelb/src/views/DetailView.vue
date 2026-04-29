@@ -203,15 +203,6 @@
                   ></i>
                   {{ journey.accessibility_summary.fully_accessible ? 'Fully accessible' : 'Check warnings' }}
                 </div>
-                <button
-                  class="jp-steps-btn"
-                  @click="showTimeline = !showTimeline"
-                  :aria-expanded="showTimeline"
-                  aria-controls="jp-timeline-panel"
-                >
-                  <i :class="['pi', showTimeline ? 'pi-chevron-up' : 'pi-chevron-down']" aria-hidden="true"></i>
-                  {{ showTimeline ? 'Hide steps' : 'View steps' }}
-                </button>
               </div>
 
               <!-- Fallback summary bar -->
@@ -220,15 +211,6 @@
                   <i class="pi pi-map-marker" aria-hidden="true"></i>
                   {{ fallback.stops?.length || 0 }} accessible stops nearby
                 </div>
-                <button
-                  class="jp-steps-btn"
-                  @click="showTimeline = !showTimeline"
-                  :aria-expanded="showTimeline"
-                  aria-controls="jp-timeline-panel"
-                >
-                  <i :class="['pi', showTimeline ? 'pi-chevron-up' : 'pi-chevron-down']" aria-hidden="true"></i>
-                  {{ showTimeline ? 'Hide stops' : 'View stops' }}
-                </button>
                 <button class="btn-link" @click="resetJourneyToIdle">
                   <i class="pi pi-arrow-left" aria-hidden="true"></i>
                   Try with my address
@@ -279,228 +261,173 @@
 
         </div>
 
-        <!-- Collapsible journey timeline (below map) -->
-        <div
-          v-if="showTimeline && (uiState === 'plan' || uiState === 'fallback')"
-          id="jp-timeline-panel"
-          class="jp-timeline-panel"
-          role="region"
-          aria-label="Journey steps"
-        >
-          <!-- Accessibility warnings -->
-          <div
-            v-if="uiState === 'plan' && journey.accessibility_summary.warnings.length"
-            class="warnings-panel"
-            role="list"
-            aria-label="Accessibility warnings"
-          >
+        <!-- TWO COLUMN LAYOUT (journey timeline + hours) -->
+        <div class="detail-layout" style="margin-top:28px;">
+
+          <!-- LEFT: Journey timeline / fallback stops -->
+          <div class="detail-main">
+
+            <!-- Idle / loading / error placeholder -->
+            <div v-if="uiState === 'idle' || uiState === 'loading' || uiState === 'error'" class="tl-idle-placeholder">
+              <i class="pi pi-compass" aria-hidden="true"></i>
+              <p>Enter your starting address or share your location above to see step-by-step accessible directions here.</p>
+            </div>
+
+            <!-- Accessibility warnings -->
             <div
-              v-for="w in journey.accessibility_summary.warnings"
-              :key="w.type"
-              class="warning-row"
-              role="listitem"
+              v-if="uiState === 'plan' && journey.accessibility_summary.warnings.length"
+              class="warnings-panel"
+              role="list"
+              aria-label="Accessibility warnings"
             >
-              <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-              {{ w.message }}
-            </div>
-          </div>
-
-          <!-- Plan timeline -->
-          <div v-if="uiState === 'plan'" class="timeline" role="list" aria-label="Step-by-step journey">
-
-            <div class="tl-item" role="listitem">
-              <div class="tl-left" aria-hidden="true">
-                <div class="tl-dot tl-dot-origin"></div>
-                <div class="tl-conn tl-dashed"></div>
-              </div>
-              <div class="tl-right">
-                <div class="tl-name">{{ originLabel }}</div>
-                <div class="tl-sub">Your starting point &middot; {{ formatTime(journey.start_time) }}</div>
+              <div
+                v-for="w in journey.accessibility_summary.warnings"
+                :key="w.type"
+                class="warning-row"
+                role="listitem"
+              >
+                <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                {{ w.message }}
               </div>
             </div>
 
-            <template v-for="(leg, i) in journey.legs" :key="i">
+            <!-- Plan timeline -->
+            <div v-if="uiState === 'plan'" class="timeline" role="list" aria-label="Step-by-step journey">
 
-              <div v-if="leg.mode === 'WALK'" class="tl-item" role="listitem">
+              <div class="tl-item" role="listitem">
                 <div class="tl-left" aria-hidden="true">
-                  <div class="tl-dot tl-dot-walk"><i class="pi pi-user"></i></div>
-                  <div class="tl-conn" :class="isLastLeg(i) ? 'tl-dashed' : 'tl-solid'"></div>
-                </div>
-                <div class="tl-right">
-                  <div class="tl-name">Walk to {{ leg.to_stop?.name }}</div>
-                  <div class="tl-sub">{{ formatDist(leg.distance_metres) }} &middot; approx. {{ formatDuration(leg.duration_seconds) }}</div>
-                  <div class="tl-tags">
-                    <span class="tl-tag tl-tag-green">
-                      <i class="pi pi-check" aria-hidden="true"></i>
-                      Wheelchair accessible route
-                    </span>
-                    <span v-if="leg.distance_metres > 500" class="tl-tag tl-tag-amber">Long walk</span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else class="tl-item" role="listitem">
-                <div class="tl-left" aria-hidden="true">
-                  <div class="tl-dot tl-dot-transit" :style="`background:${getModeColor(leg.mode)}`">
-                    <span class="mode-abbr">{{ getModeAbbr(leg.mode) }}</span>
-                  </div>
-                  <div class="tl-conn tl-solid"></div>
-                </div>
-                <div class="tl-right">
-                  <div class="tl-name">{{ leg.from_stop?.name }}</div>
-                  <div class="tl-sub">Board {{ getModeLabel(leg.mode) }}</div>
-                  <div class="tl-pill" :style="`background:${getModeColor(leg.mode)}`">
-                    <span class="mode-abbr-sm">{{ getModeAbbr(leg.mode) }}</span>
-                    {{ leg.route_long_name || leg.route_short_name }} to {{ leg.trip_headsign }}
-                  </div>
-                  <div class="tl-tags">
-                    <span class="tl-tag" :class="getWcClass(leg.trip_wheelchair_accessible)">
-                      {{ getWcLabel(leg.trip_wheelchair_accessible) }}
-                    </span>
-                    <span class="tl-tag tl-tag-neutral">
-                      {{ formatDuration(leg.duration_seconds) }} &middot; {{ leg.intermediate_stops?.length ?? 0 }} stops
-                    </span>
-                    <span v-if="leg.wait_before_seconds > 60" class="tl-tag tl-tag-neutral">
-                      Wait {{ formatDuration(leg.wait_before_seconds) }}
-                    </span>
-                    <span v-if="leg.is_rail_replacement" class="tl-tag tl-tag-amber">
-                      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
-                      Rail replacement bus
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="leg.mode !== 'WALK'" class="tl-item" role="listitem">
-                <div class="tl-left" aria-hidden="true">
-                  <div class="tl-dot tl-dot-transit" :style="`background:${getModeColor(leg.mode)}`">
-                    <span class="mode-abbr">{{ getModeAbbr(leg.mode) }}</span>
-                  </div>
+                  <div class="tl-dot tl-dot-origin"></div>
                   <div class="tl-conn tl-dashed"></div>
                 </div>
                 <div class="tl-right">
-                  <div class="tl-name">{{ leg.to_stop?.name }}</div>
-                  <div class="tl-sub">Alight here &middot; {{ formatTime(leg.end_time) }}</div>
+                  <div class="tl-name">{{ originLabel }}</div>
+                  <div class="tl-sub">Your starting point &middot; {{ formatTime(journey.start_time) }}</div>
                 </div>
               </div>
 
-            </template>
+              <template v-for="(leg, i) in journey.legs" :key="i">
 
-            <div class="tl-item tl-last" role="listitem">
-              <div class="tl-left" aria-hidden="true">
-                <div class="tl-dot tl-dot-dest"><i class="pi pi-map-marker"></i></div>
-              </div>
-              <div class="tl-right">
-                <div class="tl-name">{{ destination?.feature_name }}</div>
-                <div class="tl-sub">Arrive {{ formatTime(journey.end_time) }}</div>
-                <div class="tl-tags" v-if="wheelchairEntrance !== null">
-                  <span
-                    class="tl-tag"
-                    :class="wheelchairEntrance === true ? 'tl-tag-green' : wheelchairEntrance === false ? 'tl-tag-red' : 'tl-tag-neutral'"
-                  >
-                    <i
-                      :class="['pi', wheelchairEntrance === true ? 'pi-check' : wheelchairEntrance === false ? 'pi-times' : 'pi-info-circle']"
-                      aria-hidden="true"
-                    ></i>
-                    {{ wheelchairEntrance === true ? 'Wheelchair entrance confirmed' : wheelchairEntrance === false ? 'No wheelchair entrance' : 'Wheelchair entrance unknown' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Fallback stops list -->
-          <div v-if="uiState === 'fallback'" class="stops-list" role="list" aria-label="Nearby accessible stops">
-            <div v-for="(item, i) in fallback.stops" :key="i" class="stop-card" role="listitem">
-              <div class="stop-card-top">
-                <div class="stop-mode-dot" :style="`background:${getModeColor(item.stop.mode)}`" aria-hidden="true">
-                  <span class="mode-abbr">{{ getModeAbbr(item.stop.mode) }}</span>
-                </div>
-                <div class="stop-card-info">
-                  <div class="stop-name">{{ item.stop.name }}</div>
-                  <div class="stop-meta">
-                    {{ formatDist(item.stop.distance_metres) }} away &middot; {{ formatDuration(item.walking_route.duration_seconds) }} walk
+                <div v-if="leg.mode === 'WALK'" class="tl-item" role="listitem">
+                  <div class="tl-left" aria-hidden="true">
+                    <div class="tl-dot tl-dot-walk"><i class="pi pi-user"></i></div>
+                    <div class="tl-conn" :class="isLastLeg(i) ? 'tl-dashed' : 'tl-solid'"></div>
+                  </div>
+                  <div class="tl-right">
+                    <div class="tl-name">Walk to {{ leg.to_stop?.name }}</div>
+                    <div class="tl-sub">{{ formatDist(leg.distance_metres) }} &middot; approx. {{ formatDuration(leg.duration_seconds) }}</div>
+                    <div class="tl-tags">
+                      <span class="tl-tag tl-tag-green">
+                        <i class="pi pi-check" aria-hidden="true"></i>
+                        Wheelchair accessible route
+                      </span>
+                      <span v-if="leg.distance_metres > 500" class="tl-tag tl-tag-amber">Long walk</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="stop-tags">
-                <span class="tl-tag" :class="getBoardingClass(item.stop.wheelchair_boarding)">
-                  {{ getBoardingLabel(item.stop.wheelchair_boarding) }}
-                </span>
-              </div>
-              <div v-if="item.stop.routes?.length" class="stop-routes">
-                <span class="routes-label">Routes:</span>
-                {{ item.stop.routes.join(', ') }}
-              </div>
-            </div>
-          </div>
 
-        </div>
-
-        <!-- TWO COLUMN LAYOUT (toilets + hours) -->
-        <div class="detail-layout" style="margin-top:28px;">
-
-          <!-- LEFT: Toilets -->
-          <div class="detail-main">
-            <div v-if="loading" class="section-label">
-              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
-              Loading nearby toilets...
-            </div>
-
-            <div v-else-if="nearbyToilets.length > 0" class="toilets-section">
-              <div class="section-header">
-                <div class="section-label">
-                  <i class="pi pi-map-marker" aria-hidden="true"></i>
-                  Nearby accessible toilets
-                </div>
-                <span class="section-badge">{{ nearbyToilets.length }} found within {{ radiusM }}m</span>
-              </div>
-
-              <div class="toilets-list" role="list" aria-label="Nearby accessible toilets">
-                <div
-                  v-for="toilet in nearbyToilets"
-                  :key="toilet.toilet_id"
-                  class="toilet-card"
-                  role="listitem"
-                >
-                  <div class="toilet-status-icon" :class="getToiletStatusClass(toilet.wheelchair_accessible)" aria-hidden="true">
-                    <i :class="['pi', getToiletStatusIcon(toilet.wheelchair_accessible)]"></i>
+                <div v-else class="tl-item" role="listitem">
+                  <div class="tl-left" aria-hidden="true">
+                    <div class="tl-dot tl-dot-transit" :style="`background:${getModeColor(leg.mode)}`">
+                      <span class="mode-abbr">{{ getModeAbbr(leg.mode) }}</span>
+                    </div>
+                    <div class="tl-conn tl-solid"></div>
                   </div>
-                  <div class="toilet-info">
-                    <p class="toilet-name">{{ toilet.name }}</p>
-                    <div class="toilet-tags">
-                      <span class="toilet-badge" :class="getToiletStatusClass(toilet.wheelchair_accessible)">
-                        <i :class="['pi', getToiletStatusIcon(toilet.wheelchair_accessible)]" aria-hidden="true"></i>
-                        {{ getToiletStatusLabel(toilet.wheelchair_accessible) }}
+                  <div class="tl-right">
+                    <div class="tl-name">{{ leg.from_stop?.name }}</div>
+                    <div class="tl-sub">Board {{ getModeLabel(leg.mode) }}</div>
+                    <div class="tl-pill" :style="`background:${getModeColor(leg.mode)}`">
+                      <span class="mode-abbr-sm">{{ getModeAbbr(leg.mode) }}</span>
+                      {{ leg.route_long_name || leg.route_short_name }} to {{ leg.trip_headsign }}
+                    </div>
+                    <div class="tl-tags">
+                      <span class="tl-tag" :class="getWcClass(leg.trip_wheelchair_accessible)">
+                        {{ getWcLabel(leg.trip_wheelchair_accessible) }}
+                      </span>
+                      <span class="tl-tag tl-tag-neutral">
+                        {{ formatDuration(leg.duration_seconds) }} &middot; {{ leg.intermediate_stops?.length ?? 0 }} stops
+                      </span>
+                      <span v-if="leg.wait_before_seconds > 60" class="tl-tag tl-tag-neutral">
+                        Wait {{ formatDuration(leg.wait_before_seconds) }}
+                      </span>
+                      <span v-if="leg.is_rail_replacement" class="tl-tag tl-tag-amber">
+                        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                        Rail replacement bus
                       </span>
                     </div>
                   </div>
-                  <div class="toilet-distance" :aria-label="`${Math.round(toilet.distance_m)} metres away`">
-                    <i class="pi pi-map-marker" aria-hidden="true"></i>
-                    {{ Math.round(toilet.distance_m) }}m
+                </div>
+
+                <div v-if="leg.mode !== 'WALK'" class="tl-item" role="listitem">
+                  <div class="tl-left" aria-hidden="true">
+                    <div class="tl-dot tl-dot-transit" :style="`background:${getModeColor(leg.mode)}`">
+                      <span class="mode-abbr">{{ getModeAbbr(leg.mode) }}</span>
+                    </div>
+                    <div class="tl-conn tl-dashed"></div>
+                  </div>
+                  <div class="tl-right">
+                    <div class="tl-name">{{ leg.to_stop?.name }}</div>
+                    <div class="tl-sub">Alight here &middot; {{ formatTime(leg.end_time) }}</div>
+                  </div>
+                </div>
+
+              </template>
+
+              <div class="tl-item tl-last" role="listitem">
+                <div class="tl-left" aria-hidden="true">
+                  <div class="tl-dot tl-dot-dest"><i class="pi pi-map-marker"></i></div>
+                </div>
+                <div class="tl-right">
+                  <div class="tl-name">{{ destination?.feature_name }}</div>
+                  <div class="tl-sub">Arrive {{ formatTime(journey.end_time) }}</div>
+                  <div class="tl-tags" v-if="wheelchairEntrance !== null">
+                    <span
+                      class="tl-tag"
+                      :class="wheelchairEntrance === true ? 'tl-tag-green' : wheelchairEntrance === false ? 'tl-tag-red' : 'tl-tag-neutral'"
+                    >
+                      <i
+                        :class="['pi', wheelchairEntrance === true ? 'pi-check' : wheelchairEntrance === false ? 'pi-times' : 'pi-info-circle']"
+                        aria-hidden="true"
+                      ></i>
+                      {{ wheelchairEntrance === true ? 'Wheelchair entrance confirmed' : wheelchairEntrance === false ? 'No wheelchair entrance' : 'Wheelchair entrance unknown' }}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div class="data-attribution" role="note">
-                <i class="pi pi-info-circle" aria-hidden="true"></i>
-                Toilet data sourced from the
-                <a href="https://data.melbourne.vic.gov.au" target="_blank" rel="noopener noreferrer">
-                  City of Melbourne Open Data Portal
-                  <span class="sr-only">(opens in new tab)</span>
-                </a>
+            </div>
+
+            <!-- Fallback stops list -->
+            <div v-if="uiState === 'fallback'">
+              <div class="fallback-hd">
+                <h2>Nearby accessible stops</h2>
+                <p>Walk to one of these stops to reach <strong>{{ destination?.feature_name }}</strong></p>
+              </div>
+              <div class="stops-list" role="list" aria-label="Nearby accessible stops">
+                <div v-for="(item, i) in fallback.stops" :key="i" class="stop-card" role="listitem">
+                  <div class="stop-card-top">
+                    <div class="stop-mode-dot" :style="`background:${getModeColor(item.stop.mode)}`" aria-hidden="true">
+                      <span class="mode-abbr">{{ getModeAbbr(item.stop.mode) }}</span>
+                    </div>
+                    <div class="stop-card-info">
+                      <div class="stop-name">{{ item.stop.name }}</div>
+                      <div class="stop-meta">
+                        {{ formatDist(item.stop.distance_metres) }} away &middot; {{ formatDuration(item.walking_route.duration_seconds) }} walk
+                      </div>
+                    </div>
+                  </div>
+                  <div class="stop-tags">
+                    <span class="tl-tag" :class="getBoardingClass(item.stop.wheelchair_boarding)">
+                      {{ getBoardingLabel(item.stop.wheelchair_boarding) }}
+                    </span>
+                  </div>
+                  <div v-if="item.stop.routes?.length" class="stop-routes">
+                    <span class="routes-label">Routes:</span>
+                    {{ item.stop.routes.join(', ') }}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div v-else class="no-toilets" role="status">
-              <i class="pi pi-search" aria-hidden="true"></i>
-              <p>No accessible toilets found within {{ radiusM }}m of this destination.</p>
-              <button class="retry-btn" @click="increaseRadius">
-                <i class="pi pi-plus-circle" aria-hidden="true"></i>
-                Search wider ({{ radiusM + 500 }}m)
-              </button>
-            </div>
           </div>
 
           <!-- RIGHT: Opening hours -->
@@ -556,6 +483,68 @@
 
         </div>
 
+        <!-- TOILETS (full width, below) -->
+        <div style="margin-top:24px;">
+          <div v-if="loading" class="section-label">
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+            Loading nearby toilets...
+          </div>
+
+          <div v-else-if="nearbyToilets.length > 0" class="toilets-section">
+            <div class="section-header">
+              <div class="section-label">
+                <i class="pi pi-map-marker" aria-hidden="true"></i>
+                Nearby accessible toilets
+              </div>
+              <span class="section-badge">{{ nearbyToilets.length }} found within {{ radiusM }}m</span>
+            </div>
+
+            <div class="toilets-list" role="list" aria-label="Nearby accessible toilets">
+              <div
+                v-for="toilet in nearbyToilets"
+                :key="toilet.toilet_id"
+                class="toilet-card"
+                role="listitem"
+              >
+                <div class="toilet-status-icon" :class="getToiletStatusClass(toilet.wheelchair_accessible)" aria-hidden="true">
+                  <i :class="['pi', getToiletStatusIcon(toilet.wheelchair_accessible)]"></i>
+                </div>
+                <div class="toilet-info">
+                  <p class="toilet-name">{{ toilet.name }}</p>
+                  <div class="toilet-tags">
+                    <span class="toilet-badge" :class="getToiletStatusClass(toilet.wheelchair_accessible)">
+                      <i :class="['pi', getToiletStatusIcon(toilet.wheelchair_accessible)]" aria-hidden="true"></i>
+                      {{ getToiletStatusLabel(toilet.wheelchair_accessible) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="toilet-distance" :aria-label="`${Math.round(toilet.distance_m)} metres away`">
+                  <i class="pi pi-map-marker" aria-hidden="true"></i>
+                  {{ Math.round(toilet.distance_m) }}m
+                </div>
+              </div>
+            </div>
+
+            <div class="data-attribution" role="note">
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+              Toilet data sourced from the
+              <a href="https://data.melbourne.vic.gov.au" target="_blank" rel="noopener noreferrer">
+                City of Melbourne Open Data Portal
+                <span class="sr-only">(opens in new tab)</span>
+              </a>
+            </div>
+          </div>
+
+          <div v-else class="no-toilets" role="status">
+            <i class="pi pi-search" aria-hidden="true"></i>
+            <p>No accessible toilets found within {{ radiusM }}m of this destination.</p>
+            <button class="retry-btn" @click="increaseRadius">
+              <i class="pi pi-plus-circle" aria-hidden="true"></i>
+              Search wider ({{ radiusM + 500 }}m)
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -580,7 +569,6 @@ const radiusM       = ref(500)
 let   map           = null
 
 // -- Journey state --
-const showTimeline    = ref(false)
 const uiState         = ref('idle')  // idle | loading | plan | fallback | error
 const journey         = ref(null)
 const fallback        = ref(null)
@@ -588,7 +576,6 @@ const errorMsg        = ref('')
 const geoError        = ref('')
 const addressInput    = ref('')
 const originLabel     = ref('Your location')
-const journeyHeadingRef = ref(null)
 let   originCoords    = null
 let   routeSourceIds  = []
 let   routeMarkers    = []
@@ -900,7 +887,6 @@ function addFallbackToMap() {
 function resetJourneyToIdle() {
   clearRouteFromMap()
   uiState.value      = 'idle'
-  showTimeline.value = false
   geoError.value     = ''
   originCoords       = null
   originLabel.value  = 'Your location'
@@ -972,6 +958,7 @@ async function fetchPlan(lat, lon) {
     uiState.value = 'plan'
     addRouteToMap()
   } catch {
+    clearRouteFromMap()
     errorMsg.value = 'Journey planning is currently unavailable. Try viewing nearby stops instead.'
     uiState.value  = 'error'
   }
@@ -1411,7 +1398,18 @@ onUnmounted(destroyMap)
   display: flex; align-items: center; justify-content: center;
 }
 
-/* -- JOURNEY TIMELINE PANEL -- */
+/* -- JOURNEY TIMELINE / IDLE PLACEHOLDER -- */
+.tl-idle-placeholder {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 48px 24px; text-align: center;
+  color: var(--w500);
+  background: var(--surface); border: 1.5px dashed var(--border-lt);
+  border-radius: var(--r-lg);
+}
+.tl-idle-placeholder .pi { font-size: 2rem; color: var(--w300); }
+.tl-idle-placeholder p { font-size: 14px; line-height: 1.6; margin: 0; max-width: 320px; }
+
 .jp-timeline-panel {
   background: var(--surface); border: 1.5px solid var(--border-lt);
   border-radius: 0 0 var(--r-lg) var(--r-lg);
@@ -1472,6 +1470,10 @@ onUnmounted(destroyMap)
 .tl-tag-neutral { background: var(--w100);     color: var(--w600); border: 1px solid var(--w200); }
 
 /* -- FALLBACK STOPS -- */
+.fallback-hd { margin-bottom: 16px; }
+.fallback-hd h2 { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--t700); margin-bottom: 4px; }
+.fallback-hd p  { font-size: 13.5px; color: var(--w600); }
+
 .stops-list { display: flex; flex-direction: column; gap: 12px; }
 .stop-card {
   background: var(--bg); border: 1.5px solid var(--border-lt);
@@ -1490,7 +1492,8 @@ onUnmounted(destroyMap)
 .routes-label { font-weight: 600; color: var(--t600); margin-right: 4px; }
 
 /* -- DETAIL LAYOUT -- */
-.detail-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+.detail-layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: stretch; }
+.detail-main { display: flex; flex-direction: column; }
 .detail-side { display: flex; flex-direction: column; gap: 16px; }
 
 /* -- HOURS PANEL -- */
