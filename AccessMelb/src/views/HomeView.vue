@@ -256,6 +256,18 @@
               {{ dest.sub_theme }}
             </div>
 
+            <div class="card-hours-row">
+              <span
+                v-if="hasHours(dest.destination_id) && getHours(dest.destination_id)"
+                class="hours-badge"
+                :class="getHours(dest.destination_id).open_now ? 'hours-open' : 'hours-closed'"
+              >
+                <span class="hours-dot" aria-hidden="true"></span>
+                {{ getHours(dest.destination_id).open_now ? 'Open now' : 'Closed' }}
+              </span>
+              <span v-else-if="!hasHours(dest.destination_id)" class="skeleton hours-skel"></span>
+            </div>
+
             <div class="card-foot">
               <span class="type-badge" :class="getCategoryStyle(dest.category).badge">
                 {{ formatCategory(dest.category) }}
@@ -366,7 +378,7 @@
 
 <script setup>
 import Fuse from 'fuse.js'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -380,6 +392,26 @@ const totalCount   = ref(0)
 const currentPage   = ref(1)
 const itemsPerPage  = 9
 const allDestinations = ref([])
+const hoursCache = ref({})
+
+function hasHours(id) { return id in hoursCache.value }
+function getHours(id)  { return hoursCache.value[id] }
+
+async function fetchPageHours() {
+  const ids = filteredDestinations.value.map(d => d.destination_id)
+  const uncached = ids.filter(id => !(id in hoursCache.value))
+  if (!uncached.length) return
+  await Promise.allSettled(uncached.map(async id => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/destinations/${id}`)
+      if (!res.ok) { hoursCache.value[id] = null; return }
+      const data = await res.json()
+      hoursCache.value[id] = data.venue_details?.opening_hours ?? null
+    } catch {
+      hoursCache.value[id] = null
+    }
+  }))
+}
 
 const filterOptions = [
   { value: 'all',       label: 'All venues',  icon: 'pi-th-large'          },
@@ -396,7 +428,7 @@ async function fetchDestinations() {
   try {
     // Fetch full dataset to enable client-side fuzzy search without repeated API calls
     const params = new URLSearchParams({ limit: 100, offset: 0 })
-    const res  = await fetch(`${import.meta.env.VITE_API_BASE_URL}/destinations?${params}`)
+    const res  = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/destinations?${params}`)
     if (!res.ok) throw new Error('API error')
     const data = await res.json()
     allDestinations.value = data.destinations || []
@@ -504,6 +536,7 @@ function formatCategory(cat) {
   return cat.charAt(0).toUpperCase() + cat.slice(1)
 }
 
+watch(filteredDestinations, fetchPageHours)
 onMounted(fetchDestinations)
 </script>
 
@@ -760,9 +793,23 @@ onMounted(fetchDestinations)
 .icon-bg-default   { background: var(--w100);      color: var(--w600);  }
 
 .venue-address {
-  font-size: 13px; color: var(--w600); margin-bottom: 18px;
+  font-size: 13px; color: var(--w600); margin-bottom: 10px;
   display: flex; align-items: center; gap: 6px;
 }
+.card-hours-row {
+  min-height: 26px; display: flex; align-items: center; margin-bottom: 14px;
+}
+.hours-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 100px;
+}
+.hours-open  { background: var(--green-bg); color: var(--green); }
+.hours-closed { background: var(--red-bg);  color: var(--red);   }
+.hours-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  animation: pulse 2.4s ease infinite;
+}
+.hours-skel { width: 68px; height: 22px; border-radius: 100px; }
 .addr-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--t400); flex-shrink: 0; }
 .card-foot { display: flex; align-items: center; justify-content: space-between; }
 

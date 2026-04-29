@@ -47,17 +47,23 @@
           </div>
 
           <div class="vh-badges">
-            <div class="vh-badge vh-badge-go">
-              <i class="pi pi-check" aria-hidden="true"></i>
-              Wheelchair entrance
-            </div>
-            <div class="vh-badge vh-badge-go">
-              <i class="pi pi-check" aria-hidden="true"></i>
-              Accessible parking
-            </div>
-            <div class="vh-badge vh-badge-none">
+            <template v-if="accessibilityBadges.length">
+              <div
+                v-for="badge in accessibilityBadges"
+                :key="badge.label"
+                class="vh-badge"
+                :class="badge.value === true ? 'vh-badge-go' : badge.value === false ? 'vh-badge-no' : 'vh-badge-none'"
+              >
+                <i
+                  :class="['pi', badge.value === true ? 'pi-check' : badge.value === false ? 'pi-times' : 'pi-info-circle']"
+                  aria-hidden="true"
+                ></i>
+                {{ badge.label }}
+              </div>
+            </template>
+            <div v-else class="vh-badge vh-badge-none">
               <i class="pi pi-info-circle" aria-hidden="true"></i>
-              Seating - no data
+              Accessibility data unavailable
             </div>
           </div>
         </div>
@@ -171,10 +177,58 @@
           </div>
 
           <!-- RIGHT: Sidebar -->
-          
+          <div class="detail-side">
 
-            
-              
+            <!-- Opening hours panel -->
+            <div class="hours-panel">
+              <div class="hours-panel-hd">
+                <div class="hours-hd-icon" aria-hidden="true">
+                  <i class="pi pi-clock"></i>
+                </div>
+                <div>
+                  <div class="hours-hd-title">Opening hours</div>
+                  <div v-if="todayHoursSubtitle" class="hours-hd-sub">{{ todayHoursSubtitle }}</div>
+                </div>
+              </div>
+
+              <template v-if="loading">
+                <div class="hours-panel-body">
+                  <div class="skeleton" style="height:36px;border-radius:0;margin-bottom:1px;" v-for="n in 7" :key="n"></div>
+                </div>
+              </template>
+
+              <template v-else-if="parsedWeekdayText.length">
+                <div class="hours-panel-body" role="list" aria-label="Weekly opening hours">
+                  <div
+                    v-for="(entry, idx) in parsedWeekdayText"
+                    :key="idx"
+                    class="hours-row"
+                    :class="{ 'hours-row-today': idx === todayIndex }"
+                    role="listitem"
+                  >
+                    <div class="hours-row-day">
+                      <span v-if="idx === todayIndex">Today ({{ entry.day }})</span>
+                      <span v-else>{{ entry.day }}</span>
+                      <span
+                        v-if="idx === todayIndex && venueDetails.opening_hours.open_now"
+                        class="hours-open-chip"
+                      >OPEN</span>
+                    </div>
+                    <div class="hours-row-time">{{ entry.hours }}</div>
+                  </div>
+                </div>
+                <div class="hours-panel-foot">
+                  <i class="pi pi-clock" aria-hidden="true"></i>
+                  Source: Google Places API
+                </div>
+              </template>
+
+              <div v-else class="hours-panel-body">
+                <p class="no-hours">Hours not available</p>
+              </div>
+            </div>
+
+          </div>
 
         </div>
 
@@ -185,17 +239,51 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 const route = useRoute()
 
-const destination = ref(null)
-const loading     = ref(true)
-const error       = ref(false)
+const destination   = ref(null)
+const venueDetails  = ref(null)
+const loading       = ref(true)
+const error         = ref(false)
 const nearbyToilets = ref([])
+
+// Google Places weekday_text starts Monday=0, Sunday=6; JS getDay() Sunday=0
+const todayIndex = computed(() => (new Date().getDay() + 6) % 7)
+
+const parsedWeekdayText = computed(() =>
+  (venueDetails.value?.opening_hours?.weekday_text || []).map(entry => {
+    const colon = entry.indexOf(':')
+    return { day: entry.slice(0, colon), hours: entry.slice(colon + 2) }
+  })
+)
+
+const todayHoursSubtitle = computed(() => {
+  if (!venueDetails.value?.opening_hours) return null
+  const entry = parsedWeekdayText.value[todayIndex.value]
+  if (!entry) return null
+  if (entry.hours === 'Closed') return 'Closed today'
+  const isOpen = venueDetails.value.opening_hours.open_now
+  const match = entry.hours.match(/^(.+?)\s*[\u2013\-]\s*(.+)$/)
+  if (!match) return null
+  if (isOpen) return `Closes at ${match[2].trim()} today`
+  return `Opens at ${match[1].trim()} today`
+})
+
+const accessibilityBadges = computed(() => {
+  const a = venueDetails.value?.accessibility
+  if (!a) return []
+  return [
+    { label: 'Wheelchair entrance', value: a.wheelchair_entrance },
+    { label: 'Accessible parking',  value: a.wheelchair_parking  },
+    { label: 'Accessible restroom', value: a.wheelchair_restroom },
+    { label: 'Accessible seating',  value: a.wheelchair_seating  },
+  ]
+})
 const radiusM = ref(500)
 let   map         = null
 
@@ -206,13 +294,14 @@ async function fetchDetail() {
   try {
     const id  = route.params.id
     const res = await fetch(
-      `${import.meta.env.VITE_API_BASE_URL}/destinations/${id}?radius=${radiusM.value}`
+      `${import.meta.env.VITE_API_BASE_URL}/api/v1/destinations/${id}?radius=${radiusM.value}`
     )
     if (!res.ok) throw new Error('API error')
     const data      = await res.json()
-    destination.value = data.destination
+    destination.value  = data.destination
+    venueDetails.value = data.venue_details ?? null
     // Filter out inaccessible toilets and only show accessible or unknown to avoid discouraging users
-    nearbyToilets.value = (data.nearby_toilets?.toilets || []) .filter(t => t.wheelchair_accessible !== 'no')
+    nearbyToilets.value = (data.nearby_toilets?.toilets || []).filter(t => t.wheelchair_accessible !== 'no')
     await nextTick()
     initMap()
   } catch (e) {
@@ -277,18 +366,34 @@ function initMap() {
         const color    = getMarkerColor(toilet.wheelchair_accessible)
         const toiletEl = document.createElement('div')
         toiletEl.className = 'marker-toilet'
-        toiletEl.innerHTML = `<div class="marker-wc-pill" style="background:${color}">WC</div>`
+        toiletEl.innerHTML = `
+          <div class="marker-wc-pill" style="background:${color}">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="17" height="17" aria-hidden="true">
+              <rect x="8" y="2" width="8" height="4" rx="1.5"/>
+              <path d="M5 8h14v2a7 7 0 0 1-14 0V8z"/>
+              <rect x="9" y="17" width="6" height="2" rx="1"/>
+              <rect x="7" y="19" width="10" height="2" rx="1"/>
+            </svg>
+          </div>`
         const popup = new maplibregl.Popup({
-          offset: 15,
+          offset: 18,
           closeButton: false,
           closeOnClick: false
         }).setHTML(`
-          <strong>${toilet.name}</strong><br>
-          <span style="color:${color};font-weight:600;">${getToiletStatusLabel(toilet.wheelchair_accessible)}</span><br>
-          <span style="color:#6b8c8c;">${Math.round(toilet.distance_m)}m away</span>
+          <div style="font-family:'DM Sans',sans-serif;min-width:180px;">
+            <div style="font-size:13px;font-weight:700;color:#1a2e2e;margin-bottom:6px;line-height:1.35;">${toilet.name}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+              <span style="font-size:12px;font-weight:600;color:${color};">${getToiletStatusLabel(toilet.wheelchair_accessible)}</span>
+            </div>
+            <div style="font-size:12px;color:#6b8c8c;display:flex;align-items:center;gap:4px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#6b8c8c" width="12" height="12"><path d="M12 2a7 7 0 0 0-7 7c0 4.9 7 13 7 13s7-8.1 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+              ${Math.round(toilet.distance_m)}m away
+            </div>
+          </div>
         `)
 
-        const marker = new maplibregl.Marker({ element: toiletEl, anchor: 'center' })
+        new maplibregl.Marker({ element: toiletEl, anchor: 'center' })
           .setLngLat([toilet.longitude, toilet.latitude])
           .addTo(map)
         // Show popup on hover for faster information access
@@ -484,9 +589,81 @@ onUnmounted(destroyMap)
 /* LAYOUT */
 .detail-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 320px;
   gap: 24px; align-items: start;
 }
+@media (max-width: 900px) {
+  .detail-layout { grid-template-columns: 1fr; }
+}
+
+/* SIDEBAR */
+.detail-side { display: flex; flex-direction: column; gap: 16px; }
+.detail-panel {
+  background: var(--surface); border: 1.5px solid var(--border-lt);
+  border-radius: var(--r-lg); padding: 20px 22px; box-shadow: var(--sh-sm);
+}
+.panel-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--t500); margin-bottom: 16px;
+}
+/* HOURS PANEL */
+.hours-panel {
+  background: var(--surface);
+  border: 1.5px solid var(--border-lt);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--sh-sm);
+}
+.hours-panel-hd {
+  background: var(--t800);
+  padding: 16px 20px;
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.hours-hd-icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  background: rgba(255,255,255,0.12); color: var(--t300);
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+}
+.hours-hd-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 16px; font-weight: 700; color: var(--w0); line-height: 1.2;
+}
+.hours-hd-sub {
+  font-size: 12.5px; color: rgba(255,255,255,0.55); margin-top: 3px;
+}
+.hours-panel-body { padding: 6px 0; }
+.hours-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 20px; gap: 12px;
+  border-bottom: 1px solid var(--border-lt);
+}
+.hours-row:last-child { border-bottom: none; }
+.hours-row-today { background: var(--t50); }
+.hours-row-day {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13.5px; color: var(--t700); font-weight: 400;
+}
+.hours-row-today .hours-row-day { font-weight: 700; }
+.hours-row-time {
+  font-size: 13px; color: var(--w600); white-space: nowrap;
+}
+.hours-row-today .hours-row-time { font-weight: 600; color: var(--t600); }
+.hours-open-chip {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  padding: 2px 8px; border-radius: 100px;
+  background: rgba(13,138,74,0.15); color: var(--green);
+  border: 1px solid rgba(13,138,74,0.28);
+}
+.hours-panel-foot {
+  padding: 10px 20px;
+  background: var(--t50);
+  border-top: 1px solid var(--border-lt);
+  font-size: 12px; color: var(--t500);
+  display: flex; align-items: center; gap: 6px;
+}
+.no-hours { font-size: 13px; color: var(--w400); margin: 0; padding: 12px 20px; }
+.vh-badge-no { background: rgba(185,44,44,0.22); color: #ff9090; border: 1.5px solid rgba(185,44,44,0.30); }
 
 /* TOILETS */
 .section-header {
@@ -622,20 +799,14 @@ onUnmounted(destroyMap)
 }
 .marker-toilet { cursor: pointer; }
 .marker-wc-pill {
-  min-width: 36px;
-  height: 28px;
-  border-radius: 20px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   border: 2.5px solid white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 11px;
-  font-weight: 800;
-  color: white;
-  letter-spacing: 0.05em;
-  padding: 0 8px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .marker-wc-pill:hover {
