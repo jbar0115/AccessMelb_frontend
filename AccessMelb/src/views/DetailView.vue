@@ -335,14 +335,20 @@
 
                 <div v-if="leg.mode === 'WALK'" class="tl-item" role="listitem">
                   <div class="tl-left" aria-hidden="true">
-                    <div class="tl-dot tl-dot-walk"><i class="pi pi-user"></i></div>
+                    <div class="tl-dot" :class="isTransferWalk(i) ? 'tl-dot-transfer' : 'tl-dot-walk'">
+                      <i :class="isTransferWalk(i) ? 'pi pi-arrow-right-arrow-left' : 'pi pi-user'"></i>
+                    </div>
                     <div class="tl-conn" :class="isLastLeg(i) ? 'tl-dashed' : 'tl-solid'"></div>
                   </div>
                   <div class="tl-right">
-                    <div class="tl-name">Walk to {{ leg.to_stop?.name }}</div>
+                    <div class="tl-name">{{ isTransferWalk(i) ? 'Transfer to' : 'Walk to' }} {{ leg.to_stop?.name }}</div>
                     <div class="tl-sub">{{ formatDist(leg.distance_metres) }} &middot; approx. {{ formatDuration(leg.duration_seconds) }}</div>
                     <div class="tl-tags">
-                      <span class="tl-tag tl-tag-green">
+                      <span v-if="isTransferWalk(i)" class="tl-tag tl-tag-amber">
+                        <i class="pi pi-arrow-right-arrow-left" aria-hidden="true"></i>
+                        Transfer
+                      </span>
+                      <span v-else class="tl-tag tl-tag-green">
                         <i class="pi pi-check" aria-hidden="true"></i>
                         Wheelchair accessible route
                       </span>
@@ -360,19 +366,26 @@
                   </div>
                   <div class="tl-right">
                     <div class="tl-name">{{ leg.from_stop?.name }}</div>
-                    <div class="tl-sub">Board {{ getModeLabel(leg.mode) }}</div>
+                    <div class="tl-sub">
+                      Board {{ getModeLabel(leg.mode) }}
+                      <span v-if="leg.from_stop?.platform_code"> &middot; {{ formatPlatform(leg.mode, leg.from_stop.platform_code) }}</span>
+                    </div>
                     <div class="tl-pill" :style="`background:${getModeColor(leg.mode)}`">
                       <span class="mode-abbr-sm">{{ getModeAbbr(leg.mode) }}</span>
-                      {{ leg.route_long_name || leg.route_short_name }} to {{ leg.trip_headsign }}
+                      {{ leg.route_short_name ? `${leg.route_short_name} · ` : '' }}{{ leg.trip_headsign }}
+                    </div>
+                    <div v-if="leg.intermediate_stops?.length" class="tl-via">
+                      via {{ leg.intermediate_stops.slice(0, 3).map(s => s.name).join(', ') }}{{ leg.intermediate_stops.length > 3 ? ` +${leg.intermediate_stops.length - 3} more` : '' }}
                     </div>
                     <div class="tl-tags">
                       <span class="tl-tag" :class="getWcClass(leg.trip_wheelchair_accessible)">
                         {{ getWcLabel(leg.trip_wheelchair_accessible) }}
                       </span>
                       <span class="tl-tag tl-tag-neutral">
-                        {{ formatDuration(leg.duration_seconds) }} &middot; {{ leg.intermediate_stops?.length ?? 0 }} stops
+                        {{ formatDuration(leg.duration_seconds) }} &middot; {{ leg.intermediate_stops?.length ?? 0 }} stop{{ leg.intermediate_stops?.length !== 1 ? 's' : '' }}
                       </span>
                       <span v-if="leg.wait_before_seconds > 60" class="tl-tag tl-tag-neutral">
+                        <i class="pi pi-clock" aria-hidden="true"></i>
                         Wait {{ formatDuration(leg.wait_before_seconds) }}
                       </span>
                       <span v-if="leg.is_rail_replacement" class="tl-tag tl-tag-amber">
@@ -392,7 +405,9 @@
                   </div>
                   <div class="tl-right">
                     <div class="tl-name">{{ leg.to_stop?.name }}</div>
-                    <div class="tl-sub">Alight here &middot; {{ formatTime(leg.end_time) }}</div>
+                    <div class="tl-sub">
+                      Alight here<span v-if="leg.to_stop?.platform_code"> &middot; {{ formatPlatform(leg.mode, leg.to_stop.platform_code) }}</span> &middot; {{ formatTime(leg.end_time) }}
+                    </div>
                   </div>
                 </div>
 
@@ -1140,6 +1155,17 @@ function isLastLeg(i) {
   return i === journey.value.legs.length - 1
 }
 
+function isTransferWalk(i) {
+  const legs = journey.value?.legs
+  if (!legs || legs[i]?.mode !== 'WALK') return false
+  return legs[i - 1]?.mode !== 'WALK' && legs[i + 1]?.mode !== 'WALK' && i > 0 && i < legs.length - 1
+}
+
+function formatPlatform(mode, code) {
+  if (!code) return ''
+  return mode === 'RAIL' ? `Platform ${code}` : code
+}
+
 // -- Wheelchair helpers --
 
 function getWcClass(val) {
@@ -1544,10 +1570,11 @@ onUnmounted(destroyMap)
   display: flex; align-items: center; justify-content: center;
   font-size: 15px; border: 2.5px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1;
 }
-.tl-dot-origin  { background: #15a8a8; }
-.tl-dot-walk    { background: #0d8a4a; color: white; font-size: 14px; }
-.tl-dot-transit { color: white; font-size: 13px; }
-.tl-dot-dest    { background: var(--t800); color: var(--t300); }
+.tl-dot-origin   { background: #15a8a8; }
+.tl-dot-walk     { background: #0d8a4a; color: white; font-size: 14px; }
+.tl-dot-transfer { background: #b45309; color: white; font-size: 13px; }
+.tl-dot-transit  { color: white; font-size: 13px; }
+.tl-dot-dest     { background: var(--t800); color: var(--t300); }
 .mode-abbr { font-size: 11px; font-weight: 800; color: white; }
 .tl-conn { flex: 1; width: 2px; margin: 2px 0; }
 .tl-solid { background: var(--border); }
@@ -1564,6 +1591,10 @@ onUnmounted(destroyMap)
   padding: 6px 14px; border-radius: 100px; margin-bottom: 8px;
 }
 .mode-abbr-sm { font-size: 10px; font-weight: 800; }
+.tl-via {
+  font-size: 12px; color: var(--w500); font-style: italic;
+  margin-bottom: 8px; padding-left: 2px;
+}
 .tl-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .tl-tag {
   display: inline-flex; align-items: center; gap: 4px;
