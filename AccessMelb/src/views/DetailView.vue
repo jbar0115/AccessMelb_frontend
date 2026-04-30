@@ -16,6 +16,19 @@
           <div class="skeleton" style="width:180px;height:20px;border-radius:6px;"></div>
         </div>
 
+        <!-- 404 Not Found -->
+        <div v-else-if="notFound" class="venue-header" role="alert">
+          <div>
+            <p style="color:rgba(255,255,255,0.7);margin-bottom:10px;">
+              <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+              Destination not found.
+            </p>
+            <RouterLink to="/" style="color:rgba(255,255,255,0.7);font-size:14px;text-decoration:underline;">
+              Back to all destinations
+            </RouterLink>
+          </div>
+        </div>
+
         <!-- Error -->
         <div v-else-if="error" class="venue-header" role="alert">
           <p style="color:rgba(255,255,255,0.7);">
@@ -82,7 +95,7 @@
       <div class="detail-wrap page-container">
 
         <!-- MAP SECTION -->
-        <div v-if="!loading && !error" class="map-wrap">
+        <div v-if="!loading && !error && !notFound" class="map-wrap">
 
           <!-- Journey planner header + form (always visible) -->
           <div class="jp-form-section" aria-labelledby="jp-heading">
@@ -291,6 +304,19 @@
               </div>
             </div>
 
+            <!-- Walk-only journey: no accessible transit found -->
+            <div
+              v-if="uiState === 'plan' && isWalkOnlyJourney"
+              class="warnings-panel"
+              style="margin-bottom:16px;"
+            >
+              <div class="warning-row" role="note">
+                <i class="pi pi-info-circle" style="color:#0e7490;" aria-hidden="true"></i>
+                No accessible transit route found - this is a walking-only route.
+                <button class="btn-link" @click="loadFallback">View nearby accessible stops instead</button>
+              </div>
+            </div>
+
             <!-- Plan timeline -->
             <div v-if="uiState === 'plan'" class="timeline" role="list" aria-label="Step-by-step journey">
 
@@ -402,7 +428,33 @@
                 <h2>Nearby accessible stops</h2>
                 <p>Walk to one of these stops to reach <strong>{{ destination?.feature_name }}</strong></p>
               </div>
-              <div class="stops-list" role="list" aria-label="Nearby accessible stops">
+
+              <!-- Global fallback warnings (e.g. INSUFFICIENT_STOPS) -->
+              <div
+                v-if="fallback.accessibility_summary?.warnings?.filter(w => w.stop_index === undefined).length"
+                class="warnings-panel"
+                role="list"
+                aria-label="Accessibility warnings"
+                style="margin-bottom:16px;"
+              >
+                <div
+                  v-for="w in fallback.accessibility_summary.warnings.filter(w => w.stop_index === undefined)"
+                  :key="w.type"
+                  class="warning-row"
+                  role="listitem"
+                >
+                  <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                  {{ w.message }}
+                </div>
+              </div>
+
+              <!-- Zero stops empty state -->
+              <div v-if="fallback.stops.length === 0" class="tl-idle-placeholder">
+                <i class="pi pi-map-marker" aria-hidden="true"></i>
+                <p>No accessible transport stops found near this destination.</p>
+              </div>
+
+              <div v-else class="stops-list" role="list" aria-label="Nearby accessible stops">
                 <div v-for="(item, i) in fallback.stops" :key="i" class="stop-card" role="listitem">
                   <div class="stop-card-top">
                     <div class="stop-mode-dot" :style="`background:${getModeColor(item.stop.mode)}`" aria-hidden="true">
@@ -421,8 +473,19 @@
                     </span>
                   </div>
                   <div v-if="item.stop.routes?.length" class="stop-routes">
-                    <span class="routes-label">Routes:</span>
+                    <span class="routes-label">{{ getModeLabel(item.stop.mode) }} routes:</span>
                     {{ item.stop.routes.join(', ') }}
+                  </div>
+                  <!-- Per-stop warnings (UNKNOWN_STOP_ACCESSIBILITY, LONG_WALK) -->
+                  <div v-if="getStopWarnings(i).length" style="margin-top:8px;">
+                    <div
+                      v-for="w in getStopWarnings(i)"
+                      :key="w.type"
+                      class="warning-row"
+                    >
+                      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                      {{ trimWarningMessage(w.message) }}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -462,9 +525,13 @@
                       <span v-if="idx === todayIndex">Today ({{ entry.day }})</span>
                       <span v-else>{{ entry.day }}</span>
                       <span
-                        v-if="idx === todayIndex && venueDetails.opening_hours.open_now"
+                        v-if="idx === todayIndex && venueDetails?.opening_hours?.open_now"
                         class="hours-open-chip"
                       >OPEN</span>
+                      <span
+                        v-else-if="idx === todayIndex && venueDetails?.opening_hours?.open_now === false"
+                        class="hours-closed-chip"
+                      >CLOSED</span>
                     </div>
                     <div class="hours-row-time">{{ entry.hours }}</div>
                   </div>
@@ -564,6 +631,7 @@ const destination   = ref(null)
 const venueDetails  = ref(null)
 const loading       = ref(true)
 const error         = ref(false)
+const notFound      = ref(false)
 const nearbyToilets = ref([])
 const radiusM       = ref(500)
 let   map           = null
@@ -622,16 +690,26 @@ const hasTransitLeg = computed(() =>
   journey.value?.legs?.some(l => l.mode !== 'WALK') ?? false
 )
 
+const isWalkOnlyJourney = computed(() =>
+  journey.value?.legs?.every(l => l.mode === 'WALK') ?? false
+)
+
 // -- Detail API --
 
 async function fetchDetail() {
-  loading.value = true
-  error.value   = false
+  loading.value  = true
+  error.value    = false
+  notFound.value = false
   try {
     const id  = route.params.id
     const res = await fetch(
       `${import.meta.env.VITE_API_BASE_URL}/api/v1/destinations/${id}?radius=${radiusM.value}`
     )
+    if (res.status === 404) {
+      notFound.value = true
+      error.value    = true
+      return
+    }
     if (!res.ok) throw new Error('API error')
     const data      = await res.json()
     destination.value  = data.destination
@@ -953,6 +1031,25 @@ async function fetchPlan(lat, lon) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ origin: { lat, lon }, destination_id: Number(route.params.id), departure_time: new Date().toISOString() })
     })
+    if (res.status === 422) {
+      clearRouteFromMap()
+      errorMsg.value = 'Your location is outside our service area (Greater Melbourne only).'
+      uiState.value  = 'error'
+      return
+    }
+    if (res.status === 404) {
+      clearRouteFromMap()
+      const body = await res.json().catch(() => ({}))
+      errorMsg.value = body.detail || 'No accessible journey found for this route and time.'
+      uiState.value  = 'error'
+      return
+    }
+    if (res.status === 503) {
+      clearRouteFromMap()
+      errorMsg.value = 'Journey planning is currently unavailable. Please try again shortly.'
+      uiState.value  = 'error'
+      return
+    }
     if (!res.ok) throw new Error(res.status)
     journey.value = await res.json()
     uiState.value = 'plan'
@@ -980,6 +1077,14 @@ async function loadFallback() {
     errorMsg.value = 'Unable to load nearby stops. Please try again.'
     uiState.value  = 'error'
   }
+}
+
+function getStopWarnings(stopIndex) {
+  return fallback.value?.accessibility_summary?.warnings?.filter(w => w.stop_index === stopIndex) ?? []
+}
+
+function trimWarningMessage(msg) {
+  return msg?.replace(' Check with the operator before relying on this stop.', '') ?? msg
 }
 
 // -- Formatters --
@@ -1521,6 +1626,11 @@ onUnmounted(destroyMap)
   font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
   padding: 2px 8px; border-radius: 100px;
   background: rgba(13,138,74,0.15); color: var(--green); border: 1px solid rgba(13,138,74,0.28);
+}
+.hours-closed-chip {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  padding: 2px 8px; border-radius: 100px;
+  background: rgba(185,44,44,0.15); color: var(--red); border: 1px solid rgba(185,44,44,0.28);
 }
 .hours-panel-foot {
   padding: 10px 20px; background: var(--t50); border-top: 1px solid var(--border-lt);

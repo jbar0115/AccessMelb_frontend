@@ -48,19 +48,12 @@
             </div>
           </div>
 
-          <!-- Search -->
-          <div class="search-wrap" role="search">
-            <label for="hero-search" class="sr-only">Search destinations</label>
-            <i class="pi pi-search search-icon" aria-hidden="true"></i>
-            <input
-              id="hero-search"
-              v-model="searchQuery"
-              @input="onSearch"
-              class="search-input"
-              type="search"
-              placeholder="Search for a gallery, library, theatre..."
-              autocomplete="off"
-            />
+          <!-- CTA -->
+          <div class="hero-cta" style="animation: fadeUp 0.55s 0.32s ease both;">
+            <a href="#destinations" class="cta-btn" @click.prevent="scrollToDestinations">
+              <i class="pi pi-compass" aria-hidden="true"></i>
+              Browse destinations
+            </a>
           </div>
         </div>
 
@@ -183,7 +176,7 @@
     </div>
 
     <!-- DESTINATIONS SECTION -->
-    <section class="venues-section" aria-labelledby="venues-heading">
+    <section id="destinations" class="venues-section" aria-labelledby="venues-heading">
       <div class="venues-inner page-container">
 
         <div class="venues-header">
@@ -192,6 +185,29 @@
           <span class="venues-count-badge" aria-live="polite" aria-atomic="true">
             {{ searchFiltered.length }} destination{{ searchFiltered.length !== 1 ? 's' : '' }}
           </span>
+        </div>
+
+        <!-- In-section search -->
+        <div class="venues-search-wrap" role="search">
+          <label for="venues-search" class="sr-only">Search destinations</label>
+          <i class="pi pi-search venues-search-icon" aria-hidden="true"></i>
+          <input
+            id="venues-search"
+            v-model="searchQuery"
+            @input="onSearch"
+            class="venues-search-input"
+            type="search"
+            placeholder="Search destinations..."
+            autocomplete="off"
+          />
+          <button
+            v-if="searchQuery"
+            class="venues-search-clear"
+            @click="clearSearch"
+            aria-label="Clear search"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
         </div>
 
         <!-- Filters -->
@@ -383,7 +399,6 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-const destinations = ref([])
 const loading      = ref(true)
 const error        = ref(false)
 const searchQuery  = ref('')
@@ -461,7 +476,7 @@ const searchFiltered = computed(() => {
   if (!searchQuery.value.trim()) return categoryFiltered.value
   const fuseOnCategory = new Fuse(categoryFiltered.value, {
     keys: ['feature_name', 'sub_theme'],
-    threshold: 0.4,
+    threshold: 0.2,
     minMatchCharLength: 2,
     ignoreLocation: true
   })
@@ -513,6 +528,10 @@ function goToPage(page) {
   if (page === '...' || page === currentPage.value) return
   currentPage.value = page
   window.scrollTo({ top: document.querySelector('.venues-section')?.offsetTop - 80 || 0, behavior: 'smooth' })
+}
+
+function scrollToDestinations() {
+  document.getElementById('destinations')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 // Navigate to destination detail page passing the destination ID as a route param
@@ -628,34 +647,25 @@ onMounted(fetchDestinations)
 .stat-label { font-size: 12px; color: rgba(255,255,255,0.52); font-weight: 500; margin-top: 2px; }
 .stat-div   { width: 1px; background: rgba(255,255,255,0.12); align-self: stretch; }
 
-/* Search */
-.search-wrap {
-  position: relative; max-width: 520px;
-  animation: fadeUp 0.55s 0.32s ease both;
-}
-.search-icon {
-  position: absolute; left: 20px; top: 50%;
-  transform: translateY(-50%);
-  color: var(--t500); pointer-events: none;
-  font-size: 16px;
-}
-.search-input {
-  width: 100%;
-  padding: 17px 20px 17px 52px;
-  border: 2px solid rgba(255,255,255,0.12);
+/* Hero CTA */
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.cta-btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 28px; min-height: var(--touch-min);
   border-radius: var(--r-xl);
-  background: rgba(255,255,255,0.97);
-  font-family: inherit; font-size: 15px; color: var(--text);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-  outline: none;
-  transition: border-color var(--tr), box-shadow var(--tr);
-  
+  background: var(--t400); color: var(--t800);
+  font-size: 15px; font-weight: 700;
+  box-shadow: 0 8px 28px rgba(21,168,168,0.35);
+  transition: background var(--tr), box-shadow var(--tr), transform var(--tr);
+  text-decoration: none;
 }
-.search-input::placeholder { color: var(--w400); }
-.search-input:focus {
-  border-color: var(--t400);
-  box-shadow: 0 0 0 4px rgba(21,168,168,0.22), 0 10px 40px rgba(0,0,0,0.25);
+.cta-btn:hover {
+  background: var(--t300);
+  box-shadow: 0 12px 36px rgba(21,168,168,0.45);
+  transform: translateY(-2px);
 }
+.cta-btn:focus-visible { outline: 3px solid white; outline-offset: 3px; }
+.cta-btn .pi { font-size: 16px; }
 
 /* Illustration */
 .hero-illustration-col {
@@ -720,6 +730,43 @@ onMounted(fetchDestinations)
   background: var(--t100); padding: 6px 16px; border-radius: 100px;
   border: 1.5px solid rgba(10,92,92,0.18);
 }
+
+/* In-section search */
+.venues-search-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+.venues-search-icon {
+  position: absolute; left: 14px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--t500); pointer-events: none; font-size: 14px;
+}
+.venues-search-input {
+  width: 100%;
+  padding: 11px 44px 11px 40px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-family: inherit; font-size: 14px; color: var(--text);
+  outline: none;
+  transition: border-color var(--tr), box-shadow var(--tr);
+}
+.venues-search-input::placeholder { color: var(--w400); }
+.venues-search-input:focus {
+  border-color: var(--t400);
+  box-shadow: 0 0 0 3px rgba(21,168,168,0.15);
+}
+.venues-search-clear {
+  position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  background: var(--w100); border: none;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--w500); font-size: 11px; cursor: pointer;
+  transition: background var(--tr), color var(--tr);
+}
+.venues-search-clear:hover { background: var(--w200); color: var(--t700); }
+.venues-search-clear:focus-visible { outline: 2px solid var(--t400); outline-offset: 2px; }
 
 /* Filters */
 .filters-light {
